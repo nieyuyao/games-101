@@ -49,7 +49,14 @@ Eigen::Matrix4f get_model_matrix(float angle)
 
 Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio, float zNear, float zFar)
 {
-    // TODO: Use the same projection matrix from the previous assignments
+    // positive z-axis points to the outside of the screen
+    Eigen:Matrix4f mat;
+    float tan_fov = tan(eye_fov / 2);
+    mat << -1 / (aspect_ratio * tan_fov), 0, 0, 0,
+            0, -1 / tan_fov, 0, 0,
+            0, 0, (zNear + zFar) / (zFar - zNear), 2 * zNear * zFar / (zFar - zNear),
+            0, 0, 1, 0;
+    return mat;
 }
 
 Eigen::Vector3f vertex_shader(const vertex_shader_payload& payload)
@@ -57,7 +64,6 @@ Eigen::Vector3f vertex_shader(const vertex_shader_payload& payload)
     return payload.position;
 }
 
-// 法线
 Eigen::Vector3f normal_fragment_shader(const fragment_shader_payload& payload)
 {
     Eigen::Vector3f return_color = (payload.normal.head<3>().normalized() + Eigen::Vector3f(1.0f, 1.0f, 1.0f)) / 2.f;
@@ -66,7 +72,6 @@ Eigen::Vector3f normal_fragment_shader(const fragment_shader_payload& payload)
     return result;
 }
 
-// 反射
 static Eigen::Vector3f reflect(const Eigen::Vector3f& vec, const Eigen::Vector3f& axis)
 {
     auto costheta = vec.dot(axis);
@@ -322,13 +327,10 @@ int main(int argc, const char** argv)
 
     if (command_line)
     {
-        // 清空颜色缓冲区和深度缓冲区
+        // clear color buffer and depth buffer
         r.clear(rst::Buffers::Color | rst::Buffers::Depth);
-        // 模型矩阵
         r.set_model(get_model_matrix(angle));
-        // 相机矩阵
         r.set_view(get_view_matrix(eye_pos));
-        // 投影矩阵
         r.set_projection(get_projection_matrix(45.0, 1, 0.1, 50));
 
         r.draw(TriangleList);
