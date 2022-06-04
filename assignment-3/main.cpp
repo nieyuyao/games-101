@@ -89,8 +89,7 @@ Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
     Eigen::Vector3f return_color = {0, 0, 0};
     if (payload.texture)
     {
-        // TODO: Get the texture value at the texture coordinates of the current fragment
-
+        return_color = payload.texture -> getColor(payload.tex_coords.x(), payload.tex_coords.y());
     }
     Eigen::Vector3f texture_color;
     texture_color << return_color.x(), return_color.y(), return_color.z();
@@ -116,8 +115,26 @@ Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
 
     for (auto& light : lights)
     {
-        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
-        // components are. Then, accumulate that result on the *result_color* object.
+        Eigen::Vector3f light_dir = (light.position - point).normalized();
+        Eigen::Vector3f view_dir = (eye_pos - point).normalized();
+        Eigen::Vector3f half_vector = (light_dir + view_dir).normalized();
+
+        // 距离衰减
+        float r2 = (light.position - point).dot(light.position - point);
+
+        //环境光
+        //cwiseProduct()：矩阵点对点相乘
+        Eigen::Vector3f La = ka.cwiseProduct(amb_light_intensity);
+
+        //漫反射
+        Eigen::Vector3f Ld = kd.cwiseProduct(light.intensity / r2);
+        Ld *= std::max(0.0f, normal.normalized().dot(light_dir));
+
+        //高光
+        Eigen::Vector3f Ls = ks.cwiseProduct(light.intensity / r2);
+        Ls *= std::pow(std::max(0.0f, normal.normalized().dot(half_vector)), p);
+
+        result_color += (La + Ld + Ls);
 
     }
 
@@ -158,7 +175,6 @@ Eigen::Vector3f phong_fragment_shader(const fragment_shader_payload& payload)
 
 Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payload)
 {
-    
     Eigen::Vector3f ka = Eigen::Vector3f(0.005, 0.005, 0.005);
     Eigen::Vector3f kd = payload.color;
     Eigen::Vector3f ks = Eigen::Vector3f(0.7937, 0.7937, 0.7937);
@@ -196,8 +212,6 @@ Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payl
     {
         // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
         // components are. Then, accumulate that result on the *result_color* object.
-
-
     }
 
     return result_color * 255.f;
@@ -264,11 +278,11 @@ int main(int argc, const char** argv)
             Triangle* t = new Triangle();
             for(int j=0;j<3;j++)
             {
-                // 顶点
+                // vertex
                 t->setVertex(j,Vector4f(mesh.Vertices[i+j].Position.X,mesh.Vertices[i+j].Position.Y,mesh.Vertices[i+j].Position.Z,1.0));
-                // 法线
+                // normal
                 t->setNormal(j,Vector3f(mesh.Vertices[i+j].Normal.X,mesh.Vertices[i+j].Normal.Y,mesh.Vertices[i+j].Normal.Z));
-                // 纹理坐标
+                // texture
                 t->setTexCoord(j,Vector2f(mesh.Vertices[i+j].TextureCoordinate.X, mesh.Vertices[i+j].TextureCoordinate.Y));
             }
             TriangleList.push_back(t);
