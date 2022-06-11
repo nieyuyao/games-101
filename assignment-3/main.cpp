@@ -80,8 +80,8 @@ static Eigen::Vector3f reflect(const Eigen::Vector3f& vec, const Eigen::Vector3f
 
 struct light
 {
-    Eigen::Vector3f position;
-    Eigen::Vector3f intensity;
+    Eigen::Vector3f position; // 光源位置
+    Eigen::Vector3f intensity; // 光照强度
 };
 
 Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
@@ -94,43 +94,54 @@ Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
     Eigen::Vector3f texture_color;
     texture_color << return_color.x(), return_color.y(), return_color.z();
 
+    // 环境光系数
     Eigen::Vector3f ka = Eigen::Vector3f(0.005, 0.005, 0.005);
+    // 漫反射系数
     Eigen::Vector3f kd = texture_color / 255.f;
+    // 镜面光照系数
     Eigen::Vector3f ks = Eigen::Vector3f(0.7937, 0.7937, 0.7937);
 
+    // 创建两个点光源
     auto l1 = light{{20, 20, 20}, {500, 500, 500}};
     auto l2 = light{{-20, 20, 0}, {500, 500, 500}};
 
     std::vector<light> lights = {l1, l2};
+    // 环境光强度
     Eigen::Vector3f amb_light_intensity{10, 10, 10};
     Eigen::Vector3f eye_pos{0, 0, 10};
 
-    float p = 150;
+    float p = 150; // 光滑度
 
     Eigen::Vector3f color = texture_color;
+    // 片元的世界坐标
     Eigen::Vector3f point = payload.view_pos;
+    // 片元的法向量
     Eigen::Vector3f normal = payload.normal;
 
     Eigen::Vector3f result_color = {0, 0, 0};
 
     for (auto& light : lights)
     {
+        // 点光源到片元的方向向量
         Eigen::Vector3f light_dir = (light.position - point).normalized();
+        // 摄像机到片元的方向向量
         Eigen::Vector3f view_dir = (eye_pos - point).normalized();
+        // 半角向量
         Eigen::Vector3f half_vector = (light_dir + view_dir).normalized();
 
-        // 距离衰减
+        // 点光源到片元的距离
         float r2 = (light.position - point).dot(light.position - point);
 
-        //环境光
-        //cwiseProduct()：矩阵点对点相乘
+        // 环境光
+        // cwiseProduct() 向量各个分量相乘
         Eigen::Vector3f La = ka.cwiseProduct(amb_light_intensity);
 
-        //漫反射
+        // 漫反射
+        // 光照强度与距离的大小成反比
         Eigen::Vector3f Ld = kd.cwiseProduct(light.intensity / r2);
         Ld *= std::max(0.0f, normal.normalized().dot(light_dir));
 
-        //高光
+        // 镜面光照
         Eigen::Vector3f Ls = ks.cwiseProduct(light.intensity / r2);
         Ls *= std::pow(std::max(0.0f, normal.normalized().dot(half_vector)), p);
 
