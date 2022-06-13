@@ -84,6 +84,7 @@ struct light
     Eigen::Vector3f intensity; // 光照强度
 };
 
+// 布林冯光照
 Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
 {
     Eigen::Vector3f return_color = {0, 0, 0};
@@ -152,6 +153,7 @@ Eigen::Vector3f texture_fragment_shader(const fragment_shader_payload& payload)
     return result_color * 255.f;
 }
 
+// 冯光照
 Eigen::Vector3f phong_fragment_shader(const fragment_shader_payload& payload)
 {
     Eigen::Vector3f ka = Eigen::Vector3f(0.005, 0.005, 0.005);
@@ -194,8 +196,7 @@ Eigen::Vector3f phong_fragment_shader(const fragment_shader_payload& payload)
     return result_color * 255.f;
 }
 
-
-
+// 位移贴图
 Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payload)
 {
     Eigen::Vector3f ka = Eigen::Vector3f(0.005, 0.005, 0.005);
@@ -216,31 +217,58 @@ Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payl
     Eigen::Vector3f normal = payload.normal;
 
     float kh = 0.2, kn = 0.1;
-    
-    // TODO: Implement displacement mapping here
-    // Let n = normal = (x, y, z)
-    // Vector t = (x*y/sqrt(x*x+z*z),sqrt(x*x+z*z),z*y/sqrt(x*x+z*z))
-    // Vector b = n cross product t
-    // Matrix TBN = [t b n]
-    // dU = kh * kn * (h(u+1/w,v)-h(u,v))
-    // dV = kh * kn * (h(u,v+1/h)-h(u,v))
-    // Vector ln = (-dU, -dV, 1)
-    // Position p = p + kn * n * h(u,v)
-    // Normal n = normalize(TBN * ln)
-
+    Eigen::Vector3f n = payload.normal;
+    Eigen::Vector3f t;
+    float d = std::sqrt(n.x() * n.x() + n.z() * n.z());
+    // 求出t向量
+    t << n.x() * n.y() / d, -d, n.z() * n.y() / d;
+    // 利用叉乘求出b向量
+    Eigen::Vector3f b = n.cross(t);
+    // 切向空间矩阵
+    Eigen::Matrix3f tbn;
+    tbn << t.x(), b.x(), n.x(),
+           t.y(), b.y(), n.y(),
+           t.z(), b.z(), n.z();
+    float w = payload.texture->width;
+    float h = payload.texture->height;
+    float u = payload.tex_coords.x();
+    float v = payload.tex_coords.y();
+    // 求出切平面的两个向量
+    float dhdu = kh * kn * (payload.texture->getColor(u + 1 / w, v).norm() - payload.texture->getColor(u, v).norm());
+    float dhdv = kh * kn * (payload.texture->getColor(u, v + 1 / h).norm() - payload.texture->getColor(u, v).norm());
+    Eigen::Vector3f ln;
+    // 新的法向量
+    ln << -dhdu, -dhdv, 1;
+    // 顶点坐标沿发现方向偏移
+    point += kn * normal * payload.texture->getColor(u, v).norm();
+    // 将法线从切向空间转换到view space
+    normal = (tbn * ln).normalized();
 
     Eigen::Vector3f result_color = {0, 0, 0};
 
     for (auto& light : lights)
     {
-        // TODO: For each light source in the code, calculate what the *ambient*, *diffuse*, and *specular* 
-        // components are. Then, accumulate that result on the *result_color* object.
+       float r2 = (light.position - point).dot(light.position - point);
+        // 环境光
+        Eigen::Vector3f La = ka.cwiseProduct(amb_light_intensity);
+        // 漫反射
+        Eigen::Vector3f light_payload_dir = (light.position - point).normalized();
+        Eigen::Vector3f Ld = kd.cwiseProduct(light.intensity / r2);
+        Ld *= std::max(0.0f, light_payload_dir.dot(normal));
+        // 镜面光
+        Eigen::Vector3f eye_payload_dir = (eye_pos - point).normalized();
+        // 反射光的方向
+        Eigen::Vector3f reflect_dir = reflect(light_payload_dir, normal);
+        Eigen::Vector3f Ls = ks.cwiseProduct(light.intensity / r2);
+        Ls *= std::pow(std::max(0.0f, reflect_dir.dot(eye_payload_dir)), p);
+
+        result_color += (La + Ld + Ls);
     }
 
     return result_color * 255.f;
 }
 
-
+// 凹凸贴图
 Eigen::Vector3f bump_fragment_shader(const fragment_shader_payload& payload)
 {
     
@@ -349,7 +377,7 @@ int main(int argc, const char** argv)
         }
         else if (argc == 3 && std::string(argv[2]) == "displacement")
         {
-            std::cout << "Rasterizing using the bump shader\n";
+            std::cout << "Rasterizing using the displacement shader\n";
             active_shader = displacement_fragment_shader;
         }
     }
