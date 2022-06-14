@@ -234,13 +234,13 @@ Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payl
     float u = payload.tex_coords.x();
     float v = payload.tex_coords.y();
     // 求出切平面的两个向量
-    float dhdu = kh * kn * (payload.texture->getColor(u + 1 / w, v).norm() - payload.texture->getColor(u, v).norm());
-    float dhdv = kh * kn * (payload.texture->getColor(u, v + 1 / h).norm() - payload.texture->getColor(u, v).norm());
+    float dhdu = kn / w * (payload.texture->getColor(u + 1 / w, v).norm() - payload.texture->getColor(u, v).norm());
+    float dhdv = kn / h * (payload.texture->getColor(u, v + 1 / h).norm() - payload.texture->getColor(u, v).norm());
     Eigen::Vector3f ln;
     // 新的法向量
-    ln << -dhdu, -dhdv, 1;
+    ln << dhdu, dhdv, 1;
     // 顶点坐标沿发现方向偏移
-    point += kn * normal * payload.texture->getColor(u, v).norm();
+    point += (kn * payload.texture->getColor(u, v).norm() + kh) * normal;
     // 将法线从切向空间转换到view space
     normal = (tbn * ln).normalized();
 
@@ -292,15 +292,32 @@ Eigen::Vector3f bump_fragment_shader(const fragment_shader_payload& payload)
 
     float kh = 0.2, kn = 0.1;
 
-    // TODO: Implement bump mapping here
-    // Let n = normal = (x, y, z)
-    // Vector t = (x*y/sqrt(x*x+z*z),sqrt(x*x+z*z),z*y/sqrt(x*x+z*z))
-    // Vector b = n cross product t
-    // Matrix TBN = [t b n]
-    // dU = kh * kn * (h(u+1/w,v)-h(u,v))
-    // dV = kh * kn * (h(u,v+1/h)-h(u,v))
-    // Vector ln = (-dU, -dV, 1)
-    // Normal n = normalize(TBN * ln)
+    Eigen::Vector3f n = payload.normal;
+    Eigen::Vector3f t;
+    float d = std::sqrt(n.x() * n.x() + n.z() * n.z());
+    // 求出t向量
+    t << n.x() * n.y() / d, -d, n.z() * n.y() / d;
+    // 利用叉乘求出b向量
+    Eigen::Vector3f b = n.cross(t);
+    // 切向空间矩阵
+    Eigen::Matrix3f tbn;
+    tbn << t.x(), b.x(), n.x(),
+           t.y(), b.y(), n.y(),
+           t.z(), b.z(), n.z();
+    float w = payload.texture->width;
+    float h = payload.texture->height;
+    float u = payload.tex_coords.x();
+    float v = payload.tex_coords.y();
+    // 求出切平面的两个向量
+    float dhdu = kn / w * (payload.texture->getColor(u + 1 / w, v).norm() - payload.texture->getColor(u, v).norm());
+    float dhdv = kn / h * (payload.texture->getColor(u, v + 1 / h).norm() - payload.texture->getColor(u, v).norm());
+    Eigen::Vector3f ln;
+    // 新的法向量
+    ln << dhdu, dhdv, 1;
+    // 顶点坐标沿发现方向偏移
+    point += (kn * payload.texture->getColor(u, v).norm() + kh) * normal;
+    // 将法线从切向空间转换到view space
+    normal = (tbn * ln).normalized();
 
 
     Eigen::Vector3f result_color = {0, 0, 0};
