@@ -271,7 +271,6 @@ Eigen::Vector3f displacement_fragment_shader(const fragment_shader_payload& payl
 // 凹凸贴图
 Eigen::Vector3f bump_fragment_shader(const fragment_shader_payload& payload)
 {
-    
     Eigen::Vector3f ka = Eigen::Vector3f(0.005, 0.005, 0.005);
     Eigen::Vector3f kd = payload.color;
     Eigen::Vector3f ks = Eigen::Vector3f(0.7937, 0.7937, 0.7937);
@@ -314,14 +313,31 @@ Eigen::Vector3f bump_fragment_shader(const fragment_shader_payload& payload)
     Eigen::Vector3f ln;
     // 新的法向量
     ln << dhdu, dhdv, 1;
-    // 顶点坐标沿发现方向偏移
-    point += (kn * payload.texture->getColor(u, v).norm() + kh) * normal;
     // 将法线从切向空间转换到view space
     normal = (tbn * ln).normalized();
 
-
     Eigen::Vector3f result_color = {0, 0, 0};
-    result_color = normal;
+
+    // 看网上一些答案，都是将normal作为result_color，不明白为什么这样做
+    // 我觉得这里仍然是需要考虑光照的
+    for (auto& light : lights)
+    {
+       float r2 = (light.position - point).dot(light.position - point);
+        // 环境光
+        Eigen::Vector3f La = ka.cwiseProduct(amb_light_intensity);
+        // 漫反射
+        Eigen::Vector3f light_payload_dir = (light.position - point).normalized();
+        Eigen::Vector3f Ld = kd.cwiseProduct(light.intensity / r2);
+        Ld *= std::max(0.0f, light_payload_dir.dot(normal));
+        // 镜面光
+        Eigen::Vector3f eye_payload_dir = (eye_pos - point).normalized();
+        // 反射光的方向
+        Eigen::Vector3f reflect_dir = reflect(light_payload_dir, normal);
+        Eigen::Vector3f Ls = ks.cwiseProduct(light.intensity / r2);
+        Ls *= std::pow(std::max(0.0f, reflect_dir.dot(eye_payload_dir)), p);
+
+        result_color += (La + Ld + Ls);
+    }
 
     return result_color * 255.f;
 }
