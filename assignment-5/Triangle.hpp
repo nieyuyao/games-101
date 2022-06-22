@@ -4,6 +4,20 @@
 
 #include <cstring>
 
+/**
+ * @brief 检测光线是否与三角形相交
+ * 
+ * @param v0 
+ * @param v1 
+ * @param v2 
+ * @param orig 
+ * @param dir 
+ * @param tnear 
+ * @param u 
+ * @param v 
+ * @return true 
+ * @return false 
+ */
 bool rayTriangleIntersect(const Vector3f& v0, const Vector3f& v1, const Vector3f& v2, const Vector3f& orig,
                           const Vector3f& dir, float& tnear, float& u, float& v)
 {
