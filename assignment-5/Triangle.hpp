@@ -7,24 +7,41 @@
 /**
  * @brief 检测光线是否与三角形相交
  * 
- * @param v0 
- * @param v1 
- * @param v2 
- * @param orig 
- * @param dir 
- * @param tnear 
- * @param u 
- * @param v 
+ * @param v0 三角形顶点
+ * @param v1 三角形顶点
+ * @param v2 三角形顶点
+ * @param orig 光源起点
+ * @param dir 光源方向
+ * @param tnear 光线长度
+ * @param u uv坐标
+ * @param v uv坐标
  * @return true 
  * @return false 
  */
 bool rayTriangleIntersect(const Vector3f& v0, const Vector3f& v1, const Vector3f& v2, const Vector3f& orig,
                           const Vector3f& dir, float& tnear, float& u, float& v)
 {
-    // TODO: Implement this function that tests whether the triangle
-    // that's specified bt v0, v1 and v2 intersects with the ray (whose
-    // origin is *orig* and direction is *dir*)
-    // Also don't forget to update tnear, u and v.
+    Vector3f e1 = v1 - v0;
+    Vector3f e2 = v2 - v0;
+    Vector3f s = orig - v0;
+    Vector3f s1 = crossProduct(dir, e2);
+    Vector3f s2 = crossProduct(s, e1);
+    float temp = dotProduct(s1, e1);
+    if (temp == 0) {
+        return false;
+    }
+    float k = 1 / temp;
+    float t = k * dotProduct(s2, e2);
+    float b1 = k * dotProduct(s1, s);
+    float b2 = k * dotProduct(s2, dir);
+    float b3 = 1 - b1 - b2;
+    if (t > 0 && b1 >= 0 && b1 <= 1 && b2 >= 0 && b2 <= 1 && b3 >= 0 && b3 <= 1)
+    {
+        tnear = t;
+        u = b1;
+        v = b2;
+        return true;
+    }
     return false;
 }
 
